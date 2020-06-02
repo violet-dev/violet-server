@@ -14,6 +14,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Net;
 using System.Text;
 using System.Threading;
 
@@ -158,13 +159,23 @@ namespace hsync
             Console.WriteLine($"Version: {Version.Text} (Build: {Internals.GetBuildDate().ToLongDateString()})");
             Console.WriteLine("");
 
+            if (!File.Exists("hiddendata.json"))
+            {
+                Logs.Instance.Push("Welcome to hsync!\r\n\tDownload the necessary data before running the program!");
+                download_data("https://github.com/rollrat/violet-server/releases/download/idata/hiddendata.json", "hiddendata.json");
+            }
+            if (!File.Exists("metadata.json"))
+                download_data("https://github.com/rollrat/violet-server/releases/download/idata/metadata.json", "metadata.json");
+            if (!File.Exists("ex-hentai-archive.json"))
+                download_data("https://github.com/rollrat/violet-server/releases/download/idata/ex-hentai-archive.json", "ex-hentai-archive.json");
+
             HitomiData.Instance.Load();
 
             var latest = HitomiData.Instance.metadata_collection.First().ID;
 
             // Sync Hitomi
             {
-                var range = 2000;
+                var range = 200;
                 var exists = new HashSet<int>();
                 foreach (var metadata in HitomiData.Instance.metadata_collection)
                     exists.Add(metadata.ID);
@@ -184,7 +195,7 @@ namespace hsync
                         pb.Report(gburls.Count, dcnt, Interlocked.Increment(ref ecnt));
                     });
                 }
-                Console.WriteLine("Complete.");
+                Console.WriteLine("Complete");
 
                 var gurls = new List<string>(gburls.Count);
                 for (int i = 0; i < gburls.Count; i++)
@@ -201,7 +212,8 @@ namespace hsync
                 dcnt = 0;
                 ecnt = 0;
                 Console.Write("Running gallery tester... ");
-                List<string> htmls2;
+                List<string> htmls2 = null;
+                if (gurls.Count != 0)
                 using (var pb = new ProgressBar())
                 {
                     htmls2 = NetTools.DownloadStrings(gurls, "",
@@ -212,7 +224,7 @@ namespace hsync
                         pb.Report(gburls.Count, dcnt, Interlocked.Increment(ref ecnt));
                     });
                 }
-                Console.WriteLine("Complete.");
+                Console.WriteLine("Complete");
 
                 var result = new List<HitomiArticle>();
                 for (int i = 0, j = 0; i < gburls.Count; i++)
@@ -229,7 +241,7 @@ namespace hsync
 
                 Console.Write("Save to hiddendata.json... ");
                 HitomiData.Instance.SaveWithNewData(result);
-                Console.WriteLine("Complete.");
+                Console.WriteLine("Complete");
             }
 
             // Sync EH
@@ -240,22 +252,30 @@ namespace hsync
                 {
                     try
                     {
-                        var task = NetTask.MakeDefault($"https://exhentai.org/?page={i}&f_doujinshi=on&f_manga=on&f_artistcg=on&f_gamecg=on&&f_cats=0&f_sname=on&f_stags=on&f_sh=on&advsearch=1&f_srdd=2&f_sname=on&f_stags=on&f_sdesc=on&f_sh=on");
-                        task.Cookie = "igneous=30e0c0a66;ipb_member_id=2742770;ipb_pass_hash=6042be35e994fed920ee7dd11180b65f;sl=dm_2";
-                        var html = NetTools.DownloadString(task);
+                        //var task = NetTask.MakeDefault($"https://exhentai.org/?page={i}&f_doujinshi=on&f_manga=on&f_artistcg=on&f_gamecg=on&&f_cats=0&f_sname=on&f_stags=on&f_sh=on&advsearch=1&f_srdd=2&f_sname=on&f_stags=on&f_sdesc=on&f_sh=on");
+                        //task.Cookie = "igneous=30e0c0a66;ipb_member_id=2742770;ipb_pass_hash=6042be35e994fed920ee7dd11180b65f;sl=dm_2";
+                        //var html = NetTools.DownloadString(task);
+                        var url = $"https://exhentai.org/?page={i}&f_doujinshi=on&f_manga=on&f_artistcg=on&f_gamecg=on&&f_cats=0&f_sname=on&f_stags=on&f_sh=on&advsearch=1&f_srdd=2&f_sname=on&f_stags=on&f_sdesc=on&f_sh=on";
+                        var wc = new WebClient();
+                        wc.Encoding = Encoding.UTF8;
+                        wc.Headers.Add(HttpRequestHeader.Accept, "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8");
+                        wc.Headers.Add(HttpRequestHeader.UserAgent, "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/66.0.3359.139 Safari/537.36");
+                        wc.Headers.Add(HttpRequestHeader.Cookie, "igneous=30e0c0a66;ipb_member_id=2742770;ipb_pass_hash=6042be35e994fed920ee7dd11180b65f;sl=dm_2");
+                        var html = wc.DownloadString(url);
 
                         try
                         {
                             var exh = ExHentaiParser.ParseResultPageExtendedListView(html);
                             result.AddRange(exh);
                             if (exh.Count != 25)
-                                Logs.Instance.PushWarning("[Miss] " + task.Url);
-                            if (exh.Min(x => x.URL.Split('/')[4].ToInt()) < latest)
+                                Logs.Instance.PushWarning("[Miss] " + url);
+                            if (i > 50 && exh.Min(x => x.URL.Split('/')[4].ToInt()) < latest)
                                 break;
+                            Logs.Instance.Push("Parse exh page - " + i);
                         }
                         catch (Exception e)
                         {
-                            Logs.Instance.PushError("[Fail] " + task.Url);
+                            Logs.Instance.PushError("[Fail] " + url);
                         }
                     }
                     catch (Exception e)
@@ -300,6 +320,7 @@ namespace hsync
                 HitomiData.Instance.Load();
                 var xxx = JsonConvert.DeserializeObject<List<EHentaiResultArticle>>(File.ReadAllText("ex-hentai-archive.json"));
 
+                Console.Write("Make database... ");
                 var dict = new Dictionary<string, int>();
 
                 for (int i = 0; i < xxx.Count; i++)
@@ -344,7 +365,29 @@ namespace hsync
                     return dd;
                 }));
                 db.Close();
+                Console.WriteLine("Complete");
             }
+        }
+
+        static void download_data(string url, string filename)
+        {
+            Logs.Instance.Push($"Download {filename}...");
+            var task = NetTask.MakeDefault(url);
+
+            SingleFileProgressBar pb = null;
+            long tsz = 0;
+            task.SizeCallback = (sz) =>
+            {
+                Console.Write("Downloading ... ");
+                pb = new SingleFileProgressBar();
+                pb.Report(sz, 0);
+                tsz = sz;
+            };
+            task.Filename = filename;
+            task.DownloadCallback = (sz) => pb.Report(tsz, sz);
+            NetTools.DownloadFile(task);
+            pb.Dispose();
+            Console.WriteLine("Complete!");
         }
     }
 }
