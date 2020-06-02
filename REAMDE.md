@@ -1,6 +1,0 @@
-# Violet Server
-
-
-
-## Docker
-
