@@ -2,10 +2,14 @@
 // Copyright (C) 2020. rollrat. Licensed under the MIT Licence.
 
 using hsync.CL;
+using hsync.Component;
 using hsync.Log;
 using hsync.Network;
 using hsync.Setting;
 using hsync.Utils;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Converters;
+using SQLite;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -154,9 +158,192 @@ namespace hsync
             Console.WriteLine($"Version: {Version.Text} (Build: {Internals.GetBuildDate().ToLongDateString()})");
             Console.WriteLine("");
 
-            while (true)
+            HitomiData.Instance.Load();
+
+            var latest = HitomiData.Instance.metadata_collection.First().ID;
+
+            // Sync Hitomi
             {
-                Thread.Sleep(1000 * 60 * 10);
+                var range = 2000;
+                var exists = new HashSet<int>();
+                foreach (var metadata in HitomiData.Instance.metadata_collection)
+                    exists.Add(metadata.ID);
+
+                var gburls = Enumerable.Range(latest - range, range * 2).Where(x => !exists.Contains(x)).Select(x => $"https://ltn.hitomi.la/galleryblock/{x}.html").ToList();
+                var dcnt = 0;
+                var ecnt = 0;
+                Console.Write("Running galleryblock tester... ");
+                List<string> htmls;
+                using (var pb = new ProgressBar())
+                {
+                    htmls = NetTools.DownloadStrings(gburls, "", 
+                    () => {
+                        pb.Report(gburls.Count, Interlocked.Increment(ref dcnt), ecnt);
+                    }, 
+                    () => {
+                        pb.Report(gburls.Count, dcnt, Interlocked.Increment(ref ecnt));
+                    });
+                }
+                Console.WriteLine("Complete.");
+
+                var gurls = new List<string>(gburls.Count);
+                for (int i = 0; i < gburls.Count; i++)
+                {
+                    if (htmls[i] == null)
+                        continue;
+                    var aa = HitomiParser.ParseGalleryBlock(htmls[i]);
+                    if (aa.Magic.Contains("-"))
+                        gurls.Add("https://hitomi.la/" + aa.Magic);
+                    else
+                        gurls.Add("https://hitomi.la/galleries/" + i + ".html");
+                }
+
+                dcnt = 0;
+                ecnt = 0;
+                Console.Write("Running gallery tester... ");
+                List<string> htmls2;
+                using (var pb = new ProgressBar())
+                {
+                    htmls2 = NetTools.DownloadStrings(gurls, "",
+                    () => {
+                        pb.Report(gburls.Count, Interlocked.Increment(ref dcnt), ecnt);
+                    },
+                    () => {
+                        pb.Report(gburls.Count, dcnt, Interlocked.Increment(ref ecnt));
+                    });
+                }
+                Console.WriteLine("Complete.");
+
+                var result = new List<HitomiArticle>();
+                for (int i = 0, j = 0; i < gburls.Count; i++)
+                {
+                    if (htmls[i] == null)
+                        continue;
+                    var aa = HitomiParser.ParseGalleryBlock(htmls[i]);
+                    var ab = HitomiParser.ParseGallery(htmls2[j]);
+                    aa.Groups = ab.Groups;
+                    aa.Characters = ab.Characters;
+                    result.Add(aa);
+                    j++;
+                }
+
+                Console.Write("Save to hiddendata.json... ");
+                HitomiData.Instance.SaveWithNewData(result);
+                Console.WriteLine("Complete.");
+            }
+
+            // Sync EH
+            {
+                var result = new List<EHentaiResultArticle>();
+
+                for (int i = 0; i < 9999999; i++)
+                {
+                    try
+                    {
+                        var task = NetTask.MakeDefault($"https://exhentai.org/?page={i}&f_doujinshi=on&f_manga=on&f_artistcg=on&f_gamecg=on&&f_cats=0&f_sname=on&f_stags=on&f_sh=on&advsearch=1&f_srdd=2&f_sname=on&f_stags=on&f_sdesc=on&f_sh=on");
+                        task.Cookie = "igneous=30e0c0a66;ipb_member_id=2742770;ipb_pass_hash=6042be35e994fed920ee7dd11180b65f;sl=dm_2";
+                        var html = NetTools.DownloadString(task);
+
+                        try
+                        {
+                            var exh = ExHentaiParser.ParseResultPageExtendedListView(html);
+                            result.AddRange(exh);
+                            if (exh.Count != 25)
+                                Logs.Instance.PushWarning("[Miss] " + task.Url);
+                            if (exh.Min(x => x.URL.Split('/')[4].ToInt()) < latest)
+                                break;
+                        }
+                        catch (Exception e)
+                        {
+                            Logs.Instance.PushError("[Fail] " + task.Url);
+                        }
+                    }
+                    catch (Exception e)
+                    {
+                        Logs.Instance.PushError($"{i} {e.Message}");
+                    }
+                    Thread.Sleep(100);
+
+                    if (i % 1000 == 999)
+                        Thread.Sleep(60000);
+                }
+
+                var xxx = JsonConvert.DeserializeObject<List<EHentaiResultArticle>>(File.ReadAllText("ex-hentai-archive.json"));
+                File.Move("ex-hentai-archive.json", $"ex-hentai-archive-{DateTime.Now.Ticks}.json");
+
+                var exists = new HashSet<int>();
+                xxx.ForEach(x => exists.Add(x.URL.Split('/')[4].ToInt()));
+
+                foreach (var z in result)
+                {
+                    var nn = z.URL.Split('/')[4].ToInt();
+
+                    if (!exists.Contains(nn))
+                        xxx.Add(z);
+                }
+
+                JsonSerializer serializer = new JsonSerializer();
+                serializer.Converters.Add(new JavaScriptDateTimeConverter());
+                serializer.NullValueHandling = NullValueHandling.Ignore;
+
+                Logs.Instance.Push("Write file: ex-hentai-archive.json");
+                using (StreamWriter sw = new StreamWriter("ex-hentai-archive.json"))
+                using (JsonWriter writer = new JsonTextWriter(sw))
+                {
+                    serializer.Serialize(writer, xxx);
+                }
+            }
+
+            // Make DataBase
+            {
+                HitomiData.Instance.metadata_collection.Clear();
+                HitomiData.Instance.Load();
+                var xxx = JsonConvert.DeserializeObject<List<EHentaiResultArticle>>(File.ReadAllText("ex-hentai-archive.json"));
+
+                var dict = new Dictionary<string, int>();
+
+                for (int i = 0; i < xxx.Count; i++)
+                {
+                    if (!dict.ContainsKey(xxx[i].URL.Split('/')[4]))
+                        dict.Add(xxx[i].URL.Split('/')[4], i);
+                }
+
+                var db = new SQLiteConnection("hitomidata.db");
+                var info = db.GetTableInfo(typeof(HitomiColumnModel).Name);
+                if (!info.Any())
+                    db.CreateTable<HitomiColumnModel>();
+                db.InsertAll(HitomiData.Instance.metadata_collection.Select(md =>
+                {
+                    var dd = new HitomiColumnModel
+                    {
+                        Id = md.ID,
+                        Artists = (md.Artists != null && md.Artists.Length > 0 && md.Artists[0] != "" ? string.Join("|", md.Artists) + "|" : "N/A|"),
+                        Characters = (md.Characters != null && md.Characters.Length > 0 && md.Characters[0] != "" ? string.Join("|", md.Characters) + "|" : null),
+                        Groups = (md.Groups != null && md.Groups.Length > 0 && md.Groups[0] != "" ? string.Join("|", md.Groups) + "|" : null),
+                        Series = (md.Parodies != null && md.Parodies.Length > 0 && md.Parodies[0] != "" ? string.Join("|", md.Parodies) + "|" : null),
+                        Title = md.Name,
+                        Tags = (md.Tags != null && md.Tags.Length > 0 && md.Tags[0] != "" ? string.Join("|", md.Tags) + "|" : null),
+                        Type = md.Type,
+                        Language = md.Language,
+
+                    };
+
+                    if (dict.ContainsKey(md.ID.ToString()))
+                    {
+                        var ii = xxx[dict[md.ID.ToString()]];
+                        dd.Uploader = ii.Uploader;
+                        dd.Published = DateTime.Parse(ii.Published);
+                        dd.EHash = ii.URL.Split('/')[5];
+                        dd.Files = ii.Files.Split(' ')[0].ToInt();
+                        if (ii.Title.StartsWith("("))
+                        {
+                            dd.Class = ii.Title.Split("(")[1].Split(")")[0];
+                        }
+                    }
+
+                    return dd;
+                }));
+                db.Close();
             }
         }
     }

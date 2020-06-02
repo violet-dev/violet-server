@@ -12,7 +12,7 @@ namespace hsync.Network
 {
     public class NetTools
     {
-        public static List<string> DownloadStrings(List<string> urls, string cookie = "", Action complete = null)
+        public static List<string> DownloadStrings(List<string> urls, string cookie = "", Action complete = null, Action error = null)
         {
             var interrupt = new ManualResetEvent(false);
             var result = new string[urls.Count];
@@ -35,6 +35,7 @@ namespace hsync.Network
                 {
                     if (Interlocked.Decrement(ref count) == 0)
                         interrupt.Set();
+                    error?.Invoke();
                 };
                 task.Cookie = cookie;
                 AppProvider.Scheduler.Add(task);

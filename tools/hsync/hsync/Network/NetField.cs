@@ -32,15 +32,15 @@ namespace hsync.Network
             NetTaskPass.RunOnField(ref content);
 
             interrupt.WaitOne();
-            
-            if (content.DownloadString)
-                Log.Logs.Instance.Push("[NetField] Start download string... " + content.Url);
-            else if (content.MemoryCache)
-                Log.Logs.Instance.Push("[NetField] Start download to memory... " + content.Url);
-            else if (content.SaveFile)
-                Log.Logs.Instance.Push("[NetField] Start download file... " + content.Url + " to " + content.Filename);
 
-        REDIRECTION:
+            //if (content.DownloadString)
+            //    Log.Logs.Instance.Push("[NetField] Start download string... " + content.Url);
+            //else if (content.MemoryCache)
+            //    Log.Logs.Instance.Push("[NetField] Start download to memory... " + content.Url);
+            //else if (content.SaveFile)
+            //    Log.Logs.Instance.Push("[NetField] Start download file... " + content.Url + " to " + content.Filename);
+
+            REDIRECTION:
 
             interrupt.WaitOne();
             if (content.Cancel != null && content.Cancel.IsCancellationRequested)
@@ -252,11 +252,11 @@ namespace hsync.Network
                     }
                 }
 
-                lock (Log.Logs.Instance)
-                {
-                    Log.Logs.Instance.PushError("[NetField] Web Excpetion - " + e.Message + "\r\n" + e.StackTrace);
-                    Log.Logs.Instance.PushError(content);
-                }
+                //lock (Log.Logs.Instance)
+                //{
+                //    Log.Logs.Instance.PushError("[NetField] Web Excpetion - " + e.Message + "\r\n" + e.StackTrace);
+                //    Log.Logs.Instance.PushError(content);
+                //}
 
                 if (content.FailUrls != null && retry_count < content.FailUrls.Count)
                 {
@@ -346,46 +346,46 @@ namespace hsync.Network
             //  Retry
             //
 
-            if (content.FailUrls != null && retry_count < content.FailUrls.Count)
-            {
-                content.Url = content.FailUrls[retry_count++];
-                content.RetryCallback?.Invoke(retry_count);
+            //if (content.FailUrls != null && retry_count < content.FailUrls.Count)
+            //{
+            //    content.Url = content.FailUrls[retry_count++];
+            //    content.RetryCallback?.Invoke(retry_count);
 
-                lock (Log.Logs.Instance)
-                {
-                    Log.Logs.Instance.Push($"[NetField] Retry [{retry_count}/{content.RetryCount}]");
-                    Log.Logs.Instance.Push(content);
-                }
-                goto RETRY_PROCEDURE;
-            }
+            //    lock (Log.Logs.Instance)
+            //    {
+            //        Log.Logs.Instance.Push($"[NetField] Retry [{retry_count}/{content.RetryCount}]");
+            //        Log.Logs.Instance.Push(content);
+            //    }
+            //    goto RETRY_PROCEDURE;
+            //}
 
-            if (content.RetryWhenFail)
-            {
-                if (content.RetryCount > retry_count)
-                {
-                    retry_count += 1;
+            //if (content.RetryWhenFail)
+            //{
+            //    if (content.RetryCount > retry_count)
+            //    {
+            //        retry_count += 1;
 
-                    content.RetryCallback?.Invoke(retry_count);
+            //        content.RetryCallback?.Invoke(retry_count);
 
-                    lock (Log.Logs.Instance)
-                    {
-                        Log.Logs.Instance.Push($"[NetField] Retry [{retry_count}/{content.RetryCount}]");
-                        Log.Logs.Instance.Push(content);
-                    }
-                    goto RETRY_PROCEDURE;
-                }
+            //        lock (Log.Logs.Instance)
+            //        {
+            //            Log.Logs.Instance.Push($"[NetField] Retry [{retry_count}/{content.RetryCount}]");
+            //            Log.Logs.Instance.Push(content);
+            //        }
+            //        goto RETRY_PROCEDURE;
+            //    }
 
-                //
-                //  Many retry
-                //
+            //    //
+            //    //  Many retry
+            //    //
 
-                lock (Log.Logs.Instance)
-                {
-                    Log.Logs.Instance.Push($"[NetField] Many Retry");
-                    Log.Logs.Instance.Push(content);
-                }
-                content.ErrorCallback?.Invoke(NetTask.NetError.ManyRetry);
-            }
+            //    lock (Log.Logs.Instance)
+            //    {
+            //        Log.Logs.Instance.Push($"[NetField] Many Retry");
+            //        Log.Logs.Instance.Push(content);
+            //    }
+            //    content.ErrorCallback?.Invoke(NetTask.NetError.ManyRetry);
+            //}
 
             content.ErrorCallback?.Invoke(NetTask.NetError.Unhandled);
         }

@@ -165,6 +165,18 @@ namespace hsync.Log
             }
         }
 
+        public void PushException(Exception e)
+        {
+            PushError($"Message: {e.Message}\n" + e.StackTrace);
+            if (e.InnerException != null)
+                PushException(e.InnerException);
+        }
+
+        public void Panic()
+        {
+            Environment.Exit(1);
+        }
+
         object log_lock = new object();
 
         private void write_log(DateTime dt, string message)
