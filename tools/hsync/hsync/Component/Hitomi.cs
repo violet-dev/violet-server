@@ -210,7 +210,14 @@ namespace hsync.Component
             document.LoadHtml(source);
             HtmlNode nodes = document.DocumentNode.SelectSingleNode("//div[@class='content']");
 
-            article.Magic = nodes.SelectSingleNode("./div[3]/h1/a").GetAttributeValue("href", "").Split('/')[2].Split('.')[0];
+            try
+            {
+                article.Magic = nodes.SelectSingleNode("./div[3]/h1/a").GetAttributeValue("href", "").Split('/')[2].Split('.')[0];
+            }
+            catch
+            {
+                ;
+            }
             //article.Title = nodes.SelectSingleNode("./div[3]/h1").InnerText.Trim();
             //article.Thumbnail = nodes.SelectSingleNode("./div[2]/div/a/img").GetAttributeValue("src", "");
             //article.Artists = nodes.SelectSingleNode(".")

@@ -226,15 +226,38 @@ namespace hsync
                 }
                 Console.WriteLine("Complete");
 
+                Console.Write("Check redirect gallery html... ");
+                var last_change = true;
+                while (last_change)
+                {
+                    last_change = false;
+                    for (int i = 0; i < htmls2.Count; i++)
+                    {
+                        if (htmls2[i] == null)
+                            continue;
+                        var node = htmls2[i].ToHtmlNode();
+                        var title = node.SelectSingleNode("//title");
+                        if (title != null && title.InnerText == "Redirect")
+                        {
+                            htmls2[i] = NetTools.DownloadString(node.SelectSingleNode("//a").GetAttributeValue("href", ""));
+                            last_change = true;
+                        }
+                    }
+                }
+                Console.WriteLine("Complete");
+
                 var result = new List<HitomiArticle>();
                 for (int i = 0, j = 0; i < gburls.Count; i++)
                 {
                     if (htmls[i] == null)
                         continue;
                     var aa = HitomiParser.ParseGalleryBlock(htmls[i]);
-                    var ab = HitomiParser.ParseGallery(htmls2[j]);
-                    aa.Groups = ab.Groups;
-                    aa.Characters = ab.Characters;
+                    if (htmls2[j] != null)
+                    {
+                        var ab = HitomiParser.ParseGallery(htmls2[j]);
+                        aa.Groups = ab.Groups;
+                        aa.Characters = ab.Characters;
+                    }
                     result.Add(aa);
                     j++;
                 }
