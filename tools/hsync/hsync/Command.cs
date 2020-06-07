@@ -1,5 +1,5 @@
 ﻿// This source code is a part of project violet-server.
-// Copyright (C) 2020. rollrat. Licensed under the MIT Licence.
+// Copyright (C) 2020. violet-team. Licensed under the MIT Licence.
 
 using hsync.CL;
 using hsync.Component;
@@ -162,12 +162,12 @@ namespace hsync
             if (!File.Exists("hiddendata.json"))
             {
                 Logs.Instance.Push("Welcome to hsync!\r\n\tDownload the necessary data before running the program!");
-                download_data("https://github.com/rollrat/violet-server/releases/download/idata/hiddendata.json", "hiddendata.json");
+                download_data("https://github.com/project-violet/database/releases/download/rd2020.06.07/hiddendata.json", "hiddendata.json");
             }
             if (!File.Exists("metadata.json"))
-                download_data("https://github.com/rollrat/violet-server/releases/download/idata/metadata.json", "metadata.json");
+                download_data("https://github.com/project-violet/database/releases/download/rd2020.06.07/metadata.json", "metadata.json");
             if (!File.Exists("ex-hentai-archive.json"))
-                download_data("https://github.com/rollrat/violet-server/releases/download/idata/ex-hentai-archive.json", "ex-hentai-archive.json");
+                download_data("https://github.com/project-violet/database/releases/download/rd2020.06.07/ex-hentai-archive.json", "ex-hentai-archive.json");
 
             HitomiData.Instance.Load();
 

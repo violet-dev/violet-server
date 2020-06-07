@@ -1,5 +1,5 @@
 ﻿// This source code is a part of project violet-server.
-// Copyright (C) 2020. rollrat. Licensed under the MIT Licence.
+// Copyright (C) 2020. violet-team. Licensed under the MIT Licence.
 
 using Newtonsoft.Json;
 using System;
